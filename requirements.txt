@@ -3,4 +3,3 @@ pandas
 plotly
 python-pptx
 openpyxl
-scipy
