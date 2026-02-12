@@ -28,6 +28,7 @@ st.markdown("""
 # --- 2. CELEBRATION & UTILS ---
 def trigger_celebration():
     st.balloons()
+    # Professional Success Chime
     st.markdown(f'<iframe src="https://www.soundjay.com/buttons/sounds/button-10.mp3" allow="autoplay" style="display:none"></iframe>', unsafe_allow_html=True)
 
 # --- 3. AUTHENTICATION GATE ---
@@ -68,14 +69,14 @@ with st.sidebar:
         # --- GLOBAL SLICERS ---
         st.subheader("🎯 Global Slicers")
         cat_cols = df.select_dtypes(exclude='number').columns.tolist()
-        slicer_col = st.selectbox("Filter By Category", cat_cols)
-        selected_options = st.multiselect(f"Select {slicer_col}", df[slicer_col].unique(), default=df[slicer_col].unique())
+        slicer_col = st.selectbox("Filter By Category", cat_cols, key="slicer_select")
+        selected_options = st.multiselect(f"Select {slicer_col}", df[slicer_col].unique(), default=df[slicer_col].unique(), key="slicer_multi")
         
-        # Temporal Intelligence (Date Detection)
+        # Date Slicer (Temporal Intelligence)
         date_cols = [col for col in df.columns if 'date' in col.lower()]
         if date_cols:
             df[date_cols[0]] = pd.to_datetime(df[date_cols[0]])
-            start_date, end_date = st.date_input("Time Range", [df[date_cols[0]].min(), df[date_cols[0]].max()])
+            start_date, end_date = st.date_input("Time Range", [df[date_cols[0]].min(), df[date_cols[0]].max()], key="date_range_picker")
             mask = (df[slicer_col].isin(selected_options)) & \
                    (df[date_cols[0]] >= pd.Timestamp(start_date)) & \
                    (df[date_cols[0]] <= pd.Timestamp(end_date))
@@ -84,10 +85,10 @@ with st.sidebar:
             filtered_df = df[df[slicer_col].isin(selected_options)]
 
         st.divider()
-        chart_color = st.color_picker("Brand Theme Color", "#063970")
-        chart_type = st.selectbox("Visualization", ["Bar", "Area", "Line", "Donut"])
+        chart_color = st.color_picker("Brand Theme Color", "#063970", key="ui_color_picker")
+        chart_type = st.selectbox("Visualization", ["Bar", "Area", "Line", "Donut"], key="ui_chart_type")
 
-    if st.button("🚪 Logout"):
+    if st.button("🚪 Logout", key="logout_btn"):
         del st.session_state["auth"]
         st.rerun()
 
@@ -96,49 +97,50 @@ st.markdown(f'<div class="main-header"><h1>🚀 DataSlide BI Enterprise</h1></di
 
 if not filtered_df.empty:
     num_cols = filtered_df.select_dtypes(include=['number']).columns.tolist()
-    x_axis = st.sidebar.selectbox("X-Axis (Dimension)", filtered_df.columns, index=0)
-    y_axis = st.sidebar.selectbox("Y-Axis (Metric)", num_cols, index=0)
+    x_axis = st.sidebar.selectbox("X-Axis (Dimension)", filtered_df.columns, index=0, key="x_axis_logic")
+    y_axis = st.sidebar.selectbox("Y-Axis (Metric)", num_cols, index=0, key="y_axis_logic")
 
     # --- TABS SYSTEM ---
     tab_dash, tab_trends, tab_data = st.tabs(["📊 Executive Dashboard", "📈 Trend Analysis", "📋 Raw Data Fields"])
 
     with tab_dash:
+        # Aggregation Logic
         processed_df = filtered_df.groupby(x_axis)[y_axis].sum().reset_index()
         total_val = processed_df[y_axis].sum()
         top_perf = processed_df.loc[processed_df[y_axis].idxmax(), x_axis]
         
-        # KPI Metrics
+        # KPI Row
         k1, k2, k3 = st.columns(3)
         k1.metric(f"Total {y_axis}", f"{total_val:,.0f}")
         k2.metric("Leader", top_perf)
         k3.metric("Avg Benchmark", f"{processed_df[y_axis].mean():,.0f}")
 
-        # Prescriptive AI Insight
-        st.info(f"💡 **AI Insight:** {top_perf} is the primary driver, contributing {((processed_df[y_axis].max()/total_val)*100):.1f}% of volume. We recommend focusing resource allocation here.")
+        # AI Summary
+        st.info(f"💡 **AI Insight:** {top_perf} is the primary driver, contributing {((processed_df[y_axis].max()/total_val)*100):.1f}% of total volume.")
 
-        # Chart Engine
+        # Main Chart Engine (with Unique Keys)
         if chart_type == "Area": fig = px.area(processed_df, x=x_axis, y=y_axis)
         elif chart_type == "Bar": fig = px.bar(processed_df, x=x_axis, y=y_axis)
         elif chart_type == "Line": fig = px.line(processed_df, x=x_axis, y=y_axis, markers=True)
         else: fig = px.pie(processed_df, names=x_axis, values=y_axis, hole=0.4)
         
         fig.update_traces(marker_color=chart_color) if chart_type != "Donut" else fig.update_traces(marker=dict(colors=[chart_color]))
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, use_container_width=True, key="main_dashboard_plot")
 
     with tab_trends:
         st.subheader("📅 Temporal Performance Evolution")
         if date_cols:
             trend_df = filtered_df.groupby(date_cols[0])[y_axis].sum().reset_index()
             fig_trend = px.line(trend_df, x=date_cols[0], y=y_axis, title="Performance Over Time", markers=True)
-            st.plotly_chart(fig_trend, use_container_width=True)
+            st.plotly_chart(fig_trend, use_container_width=True, key="time_trend_plot")
         else:
-            st.warning("No date column detected for trend analysis.")
+            st.warning("No date column detected in the Excel for trend analysis.")
 
     with tab_data:
         st.subheader("🔍 Granular Data Fields")
         st.dataframe(filtered_df, use_container_width=True)
         
-        if st.button("📊 Export Executive PPT"):
+        if st.button("📊 Export Executive PPT", key="ppt_gen_btn"):
             trigger_celebration()
             prs = Presentation()
             slide = prs.slides.add_slide(prs.slide_layouts[0])
@@ -147,8 +149,8 @@ if not filtered_df.empty:
             
             buf = io.BytesIO()
             prs.save(buf)
-            st.download_button("📥 Download Official Report", buf.getvalue(), f"Report_{datetime.now().strftime('%Y%m%d')}.pptx")
+            st.download_button("📥 Download Official Report", buf.getvalue(), f"Report_{datetime.now().strftime('%Y%m%d')}.pptx", key="ppt_dl_btn")
 
 else:
     st.image("https://img.freepik.com/free-vector/growth-analytics-concept-illustration_114360-5481.jpg", width=600)
-    st.info("👋 **Welcome to the BI Command Center.** Upload an Excel file to begin.")
+    st.info("👋 **Welcome to the BI Command Center.** Upload an Excel file to unlock strategic insights.")
