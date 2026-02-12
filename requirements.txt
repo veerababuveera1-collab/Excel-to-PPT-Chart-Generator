@@ -1,5 +1,12 @@
+# --- Core Framework ---
 streamlit>=1.54.0
-pandas
-plotly
-python-pptx
-openpyxl
+
+# --- Data Analysis & Cleaning ---
+pandas>=2.2.0
+openpyxl>=3.1.0
+
+# --- Visualizations ---
+plotly>=5.22.0
+
+# --- Executive Reporting ---
+python-pptx>=1.0.2
