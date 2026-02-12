@@ -48,7 +48,7 @@ with st.sidebar:
     if uploaded_file:
         df = pd.read_excel(uploaded_file)
         
-        # Autonomous Data Repair
+        # --- AUTONOMOUS DATA REPAIR ---
         for col in df.columns:
             if df[col].dtype == 'object':
                 try: df[col] = pd.to_numeric(df[col].astype(str).str.replace(r'[$, ]', '', regex=True))
@@ -65,7 +65,7 @@ with st.sidebar:
         selected = st.multiselect(f"Focus {slicer}", df[slicer].unique(), default=df[slicer].unique())
         df_filtered = df[df[slicer].isin(selected)]
 
-        # Multi-Attribute Filters
+        # Attribute Filters
         attr_cols = [c for c in df.columns if any(x in c.lower() for x in ['status', 'severity', 'priority'])]
         for ac in attr_cols:
             df_filtered = df_filtered[df_filtered[ac].isin(st.multiselect(f"Filter {ac}", df[ac].unique(), default=df[ac].unique()))]
@@ -80,8 +80,7 @@ with st.sidebar:
 
         chart_theme = st.color_picker("Brand Color", "#004080")
         raw_y = st.selectbox("Primary Metric (Y)", df_filtered.select_dtypes(include='number').columns)
-        # Clean label for UI
-        y_axis_label = raw_y.split('(')[0].strip()
+        y_axis_label = raw_y.split('(')[0].strip() # Boardroom Label Cleanup
     else:
         st.info("Awaiting Data Upload...")
         st.stop()
@@ -95,10 +94,13 @@ if df_filtered.empty:
 
 # CALCULATIONS
 total_val = df_filtered[raw_y].sum()
-top_module = df_filtered.groupby(slicer)[raw_y].sum().idxmax()
+top_module_raw = df_filtered.groupby(slicer)[raw_y].sum().idxmax()
+
+# FIX: Convert Date object to String to prevent Metric TypeError
+top_module = top_module_raw.strftime('%Y-%m-%d') if hasattr(top_module_raw, 'strftime') else str(top_module_raw)
 risk_pct = (df_filtered.groupby(slicer)[raw_y].sum().max() / total_val) * 100 if total_val > 0 else 0
 
-# STABILITY INDEX
+# STABILITY INDEX (Predictive Model)
 if date_cols:
     recent_date = df_filtered[date_cols[0]].max()
     last_3_days = df_filtered[df_filtered[date_cols[0]] > (recent_date - timedelta(days=3))]
@@ -144,7 +146,6 @@ with t_dash:
         if 'Root_Cause' in df_filtered.columns:
             st.plotly_chart(px.pie(df_filtered, names='Root_Cause', hole=0.5), use_container_width=True)
         else:
-            # Simulate professional metadata for demo wow-factor
             sim_data = pd.DataFrame({'RC': ['Logic', 'UX', 'API', 'Data'], 'Val': [40, 20, 25, 15]})
             st.plotly_chart(px.pie(sim_data, names='RC', values='Val', hole=0.5, title="Simulated RCA (Column Missing)"), use_container_width=True)
 
@@ -173,14 +174,12 @@ with t_perf:
         fig_v.update_layout(title="Project Stability Curve", xaxis_title="Timeline", yaxis_title="Defect Volume")
         st.plotly_chart(fig_v, use_container_width=True)
         st.info("💡 Strategic Insight: The shaded area between lines represents the current Backlog Pressure.")
-        
 
 with t_audit:
     st.subheader("🔍 Strategic Audit Trail")
     search = st.text_input("🔎 Search Repository (Bug ID, Severity, etc)...")
     audit_view = df_filtered[df_filtered.apply(lambda r: search.lower() in r.astype(str).str.lower().values, axis=1)] if search else df_filtered
     
-    # RISK HEATMAP (Red for Age > 7)
     def row_style(row):
         return ['background-color: #ffcccc' if (row.get('Age', 0) > 7) else '' for _ in row]
     
@@ -196,6 +195,7 @@ with t_audit:
         prs.save(buf)
         st.download_button("📥 Download PPT", buf.getvalue(), "Executive_Report.pptx", mime="application/vnd.openxmlformats-officedocument.presentationml.presentation")
 
+# --- 6. LOGOUT ENGINE ---
 if st.sidebar.button("🚪 Logout"):
     for key in list(st.session_state.keys()):
         del st.session_state[key]
