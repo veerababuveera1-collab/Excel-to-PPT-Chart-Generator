@@ -9,7 +9,6 @@ import io
 # --- 1. PAGE CONFIG & BRANDING ---
 st.set_page_config(page_title="DataSlide Pro", layout="wide", page_icon="📊")
 
-# Custom CSS for a professional "Enterprise" look
 st.markdown("""
     <style>
     .stApp { background-color: #f4f7f9; }
@@ -31,13 +30,11 @@ st.markdown("""
         border: none;
         height: 3em;
     }
-    .stButton>button:hover {
-        background-color: #0078d4;
-        border: none;
-    }
-    div[data-testid="stExpander"] {
+    .stMetric {
         background-color: white;
+        padding: 15px;
         border-radius: 10px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
     }
     </style>
     """, unsafe_allow_html=True)
@@ -53,34 +50,29 @@ def get_default_data():
         'Expenses': [80000, 90000, 100000, 35000, 95000]
     })
 
-# --- 3. SIDEBAR & FILE INPUT ---
+# --- 3. SIDEBAR ---
 with st.sidebar:
-    st.image("https://cdn-icons-png.flaticon.com/512/732/732220.png", width=50) # Generic Excel Icon
-    st.header("Data Control Center")
-    uploaded_file = st.file_uploader("Upload your Excel file", type=["xlsx"])
-    st.divider()
-    
+    st.header("📂 Data Center")
+    uploaded_file = st.file_uploader("Upload Excel", type=["xlsx"])
     if uploaded_file:
         df = pd.read_excel(uploaded_file)
-        st.success("File successfully loaded!")
     else:
         df = get_default_data()
-        st.info("💡 Using demo data. Upload your own to generate custom reports.")
+        st.info("Using demo data.")
 
-# --- 4. INTERACTIVE DASHBOARD ---
+# --- 4. DASHBOARD UI ---
 c1, c2 = st.columns([1, 2])
 
 with c1:
-    st.subheader("🛠️ Chart Settings")
-    with st.container():
-        all_cols = df.columns.tolist()
-        num_cols = df.select_dtypes(include=['number']).columns.tolist()
-        
-        x_axis = st.selectbox("Select X-Axis (Categories)", all_cols)
-        y_axis = st.selectbox("Select Y-Axis (Values)", num_cols)
-        chart_type = st.radio("Chart Type", ["Bar", "Line", "Area"], horizontal=True)
-        chart_color = st.color_picker("Brand Primary Color", "#004b95")
-        slide_title = st.text_input("PPT Slide Title", value=f"{y_axis} by {x_axis}")
+    st.subheader("🛠️ Settings")
+    all_cols = df.columns.tolist()
+    num_cols = df.select_dtypes(include=['number']).columns.tolist()
+    
+    x_axis = st.selectbox("X-Axis", all_cols)
+    y_axis = st.selectbox("Y-Axis", num_cols)
+    chart_type = st.radio("Style", ["Bar", "Line", "Area"], horizontal=True)
+    chart_color = st.color_picker("Color", "#004b95")
+    slide_title = st.text_input("Slide Title", value=f"{y_axis} Analysis")
 
 with c2:
     st.subheader("📊 Visual Preview")
@@ -90,55 +82,43 @@ with c2:
         fig = px.line(df, x=x_axis, y=y_axis, template="plotly_white", color_discrete_sequence=[chart_color])
     else:
         fig = px.area(df, x=x_axis, y=y_axis, template="plotly_white", color_discrete_sequence=[chart_color])
-    
-    fig.update_layout(margin=dict(l=0, r=0, t=30, b=0))
     st.plotly_chart(fig, use_container_width=True)
 
-# --- 5. POWERPOINT EXPORT LOGIC ---
-def build_presentation(data, x, y, title, color):
+# --- 5. NEW: SUMMARY TABLE & KPIs ---
+st.divider()
+st.subheader("📋 Executive Summary Table")
+
+# Row for Metrics
+m1, m2, m3 = st.columns(3)
+m1.metric(f"Total {y_axis}", f"{df[y_axis].sum():,.0f}")
+m2.metric(f"Average {y_axis}", f"{df[y_axis].mean():,.0f}")
+m3.metric(f"Max {y_axis}", f"{df[y_axis].max():,.0f}")
+
+# The Summary Table
+st.dataframe(df[[x_axis, y_axis]].style.format({y_axis: "{:,.2f}"}), use_container_width=True)
+
+# --- 6. EXPORT LOGIC ---
+def build_ppt(data, x, y, title, color):
     prs = Presentation()
-    
-    # Title Slide
-    title_slide = prs.slides.add_slide(prs.slide_layouts[0])
-    title_slide.shapes.title.text = "Executive Summary Report"
-    title_slide.placeholders[1].text = "Generated Automatically via DataSlide Pro"
+    slide = prs.slides.add_slide(prs.slide_layouts[5])
+    slide.shapes.title.text = title
 
-    # Content Slide with Chart
-    chart_slide = prs.slides.add_slide(prs.slide_layouts[5])
-    chart_slide.shapes.title.text = title
-
-    # Generate stable image using Matplotlib (Bypasses Kaleido errors)
     plt.figure(figsize=(10, 6))
-    plt.bar(data[x], data[y], color=color) if chart_type == "Bar" else plt.plot(data[x], data[y], color=color, marker='o')
-    plt.title(title, fontsize=14)
-    plt.grid(axis='y', linestyle='--', alpha=0.7)
+    if chart_type == "Bar": plt.bar(data[x], data[y], color=color)
+    else: plt.plot(data[x], data[y], color=color, marker='o')
     
     img_buf = io.BytesIO()
-    plt.savefig(img_buf, format='png', dpi=300, bbox_inches='tight')
+    plt.savefig(img_buf, format='png', dpi=300)
     plt.close()
     img_buf.seek(0)
+    slide.shapes.add_picture(img_buf, Inches(1), Inches(1.5), width=Inches(8))
 
-    # Insert Image to PPT
-    chart_slide.shapes.add_picture(img_buf, Inches(1), Inches(1.5), width=Inches(8))
-
-    # Save to Buffer
     ppt_buf = io.BytesIO()
     prs.save(ppt_buf)
     ppt_buf.seek(0)
     return ppt_buf
 
-st.divider()
-
-# Center the button
-_, btn_col, _ = st.columns([1, 1, 1])
-with btn_col:
-    if st.button("🪄 Export to PowerPoint"):
-        with st.spinner("Processing High-Res Graphics..."):
-            ppt_out = build_presentation(df, x_axis, y_axis, slide_title, chart_color)
-            st.download_button(
-                label="📥 Download Presentation",
-                data=ppt_out,
-                file_name="Business_Report.pptx",
-                mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
-            )
-            st.balloons()
+if st.button("🚀 Export to PowerPoint"):
+    ppt_out = build_ppt(df, x_axis, y_axis, slide_title, chart_color)
+    st.download_button("📥 Download PPT", data=ppt_out, file_name="Report.pptx")
+    st.balloons()
