@@ -1,0 +1,6 @@
+streamlit
+pandas
+openpyxl
+plotly
+python-pptx
+kaleido==0.1.0post1
